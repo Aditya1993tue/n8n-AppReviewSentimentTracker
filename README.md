@@ -34,7 +34,7 @@ https://app.eraser.io/workspace/xOKRY11AvbDVCTzabbMH
 | “App keeps crashing” | ⭐ | Negative |
 
 ⚠️ Limitations
-- API only fetches latest 50 reviews per region
+- API only fetches the latest 50 reviews per region
 - Sarcasm and non-English text may misclassify
 - Google Sheets performance declines after 10k+ rows
 
@@ -46,9 +46,10 @@ https://app.eraser.io/workspace/xOKRY11AvbDVCTzabbMH
 
 
 🧷 Links
-- Visual design: [Whimsical Workflow Diagram](https://app.eraser.io/workspace/xOKRY11AvbDVCTzabbMH)
-- Video walkthrough: (Add your video or LinkedIn post link here)
+- Visual design: https://app.eraser.io/workspace/xOKRY11AvbDVCTzabbMH?origin=share
+- Video walkthrough: https://www.loom.com/share/f356b2531b494899a46dfd2982e220b4
 
 👨‍💻 Author
-Created by [Your Name](https://www.linkedin.com/in/your-profile/) 
+Created by www.linkedin.com/in/aditya-agarwal-a291b6146
+ 
 #n8n #Automation #AI #ProductManagement #WorkflowAutomation
