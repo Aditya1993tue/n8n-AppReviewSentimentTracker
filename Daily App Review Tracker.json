@@ -1,0 +1,302 @@
+{
+  "name": "Daily App Review Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ff9a7e9d-9f42-4580-8599-febfcbaf99e6",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://itunes.apple.com/in/rss/customerreviews/id=389801252/json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        240,
+        0
+      ],
+      "id": "bb57fd40-912a-4348-9eb1-08262c0cc972",
+      "name": "HTTP Request",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function simpleSentiment(text) {\n  const positive = ['good','great','love','amazing','excellent','happy','nice'];\n  const negative = ['bad','terrible','hate','poor','slow','awful','bug'];\n  let score = 0;\n  const lower = text.toLowerCase();\n  positive.forEach(w => { if (lower.includes(w)) score++; });\n  negative.forEach(w => { if (lower.includes(w)) score--; });\n  if (score > 0) return 'positive';\n  if (score < 0) return 'negative';\n  return 'neutral';\n}\n\nreturn items.map(item => {\n  const sentiment = simpleSentiment(item.json.review || '');\n  item.json.sentiment = sentiment;\n  return item;\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        0
+      ],
+      "id": "0d0ba3bd-6d1b-47d5-a5d6-9912fa6ea4c2",
+      "name": "Sentiment1",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Robust parser: handles either already-parsed JSON (feed.entry) or a string payload in .data\n\n// get raw payload: try items[0].json.feed first, else items[0].json.data (string), else items[0].json\nconst input = items[0] && items[0].json ? items[0].json : {};\n\n// payload may be already an object under 'feed' OR it may be a string under 'data'\nlet payload = null;\n\nif (input.feed && typeof input.feed === 'object') {\n  payload = input; // already parsed\n} else if (typeof input.data === 'string') {\n  // sometimes HTTP node returns text in .data — try to JSON.parse it\n  try {\n    payload = JSON.parse(input.data);\n  } catch (err) {\n    // maybe the string is wrapped or escaped - try one more unescape attempt\n    try {\n      const unescaped = input.data.replace(/\\\\\"/g, '\"');\n      payload = JSON.parse(unescaped);\n    } catch (err2) {\n      // failed to parse\n      return [{ json: { error: 'Failed to parse input.data as JSON', message: err2.message, sample: input.data.slice(0,400) } }];\n    }\n  }\n} else if (Object.keys(input).length) {\n  // fallback: maybe the HTTP node put parsed JSON directly at top-level\n  payload = input;\n} else {\n  return [{ json: { message: 'No input payload found' } }];\n}\n\n// now extract feed.entry safely\nconst feed = payload.feed || payload;\nconst entries = (feed && feed.entry) ? (Array.isArray(feed.entry) ? feed.entry : [feed.entry]) : [] ;\n\nif (!entries.length) {\n  return [{ json: { message: 'No reviews found in feed.entry', payload_sample: Object.keys(payload).slice(0,10) } }];\n}\n\nconst out = entries.map(e => {\n  const author = (e.author && e.author.name && e.author.name.label) || (e.author && e.author.label) || '';\n  const ratingRaw = (e['im:rating'] && e['im:rating'].label) || null;\n  const rating = ratingRaw ? parseInt(ratingRaw, 10) : null;\n  const title = (e.title && e.title.label) || '';\n  const review = (e.content && e.content.label) || '';\n  const updated = (e.updated && e.updated.label) || '';\n  const reviewId = (e.id && e.id.label) || '';\n  const version = (e['im:version'] && e['im:version'].label) || '';\n  let link = '';\n  if (e.link && e.link.attributes && e.link.attributes.href) link = e.link.attributes.href;\n  else if (Array.isArray(feed.link)) {\n    const self = feed.link.find(l => l.attributes && l.attributes.rel === 'self');\n    if (self && self.attributes) link = self.attributes.href || '';\n  }\n\n  let isoDate = updated;\n  try {\n    const d = new Date(updated);\n    if (!isNaN(d.getTime())) isoDate = d.toISOString();\n  } catch (err){}\n\n  return {\n    json: {\n      store: 'App Store',\n      author,\n      rating,\n      title,\n      review,\n      date: isoDate,\n      review_id: reviewId,\n      app_version: version,\n      link,\n      raw_json: e\n    }\n  };\n});\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        0
+      ],
+      "id": "5489c0d8-8397-44b0-8e31-94f0ae59ff4b",
+      "name": "Function",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1D50yhOLep-Zai_SoGgAvDLgN_jwSN28zYrCa9kW-0HY",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1D50yhOLep-Zai_SoGgAvDLgN_jwSN28zYrCa9kW-0HY/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "review_id": "={{ $json.review_id }}",
+            "date": "={{ $json.date }}",
+            "author": "={{ $json.author }}",
+            "title": "={{ $json.title }}",
+            "review": "={{ $json.review }}",
+            "app_version": "={{ $json.app_version }}",
+            "link": "={{ $json.link }}",
+            "sentiment": "={{ $json.sentiment }}",
+            "raw_json": "={{ $json.raw_json }}",
+            "store": "={{ $json.store }}",
+            "rating": "={{ $json.rating }}"
+          },
+          "matchingColumns": [
+            "review_id"
+          ],
+          "schema": [
+            {
+              "id": "review_id",
+              "displayName": "review_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "author",
+              "displayName": "author",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "review",
+              "displayName": "review",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "app_version",
+              "displayName": "app_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "link",
+              "displayName": "link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sentiment",
+              "displayName": "sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "raw_json",
+              "displayName": "raw_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "store",
+              "displayName": "store",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "rating",
+              "displayName": "rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        912,
+        0
+      ],
+      "id": "bb0b3185-ac25-4cea-9395-5b229cfbea33",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gmzcMC4Vns5cmbR2",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Schedule Trigger": [
+      {
+        "json": {
+          "timestamp": "2025-11-07T13:20:39.776+05:30",
+          "Readable date": "November 7th 2025, 1:20:39 pm",
+          "Readable time": "1:20:39 pm",
+          "Day of week": "Friday",
+          "Year": "2025",
+          "Month": "November",
+          "Day of month": "07",
+          "Hour": "13",
+          "Minute": "20",
+          "Second": "39",
+          "Timezone": "Asia/Calcutta (UTC+05:30)"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Function",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sentiment1": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function": {
+      "main": [
+        [
+          {
+            "node": "Sentiment1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9180d9e3-6076-4d51-bc9a-e5cba310b68e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c8e44409f70801bae84d61c500163a13c566c2844732de35049ab140c0e6d30a"
+  },
+  "id": "nuiSXm7kFysD8c5L",
+  "tags": []
+}
