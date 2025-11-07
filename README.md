@@ -25,7 +25,7 @@ It can be upgraded to use OpenAI or Google Cloud Natural Language for more advan
 
 
  📸 Visual Workflow
-![Workflow Screenshot](link-to-your-n8n-screenshot)
+https://app.eraser.io/workspace/xOKRY11AvbDVCTzabbMH
 
 📊 Output Example
 | Review | Rating | Sentiment |
